@@ -36,9 +36,9 @@ func (h configHandler) Bind(bindDN, bindSimplePw string, conn net.Conn) (resultC
 	groupName := ""
 	userName := ""
 	if len(parts) == 1 {
-		userName = strings.TrimPrefix(parts[0], "cn=")
+		userName = strings.TrimPrefix(parts[0], h.cfg.Backend.NameAttr+"=")
 	} else if len(parts) == 2 {
-		userName = strings.TrimPrefix(parts[0], "cn=")
+		userName = strings.TrimPrefix(parts[0], h.cfg.Backend.NameAttr+"=")
 		groupName = strings.TrimPrefix(parts[1], "ou=")
 	} else {
 		log.Warning(fmt.Sprintf("Bind Error: BindDN %s should have only one or two parts (has %d)", bindDN, len(parts)))
@@ -115,51 +115,79 @@ func (h configHandler) Search(bindDN string, searchReq ldap.SearchRequest, conn 
 	switch filterEntity {
 	default:
 		return ldap.ServerSearchResult{ResultCode: ldap.LDAPResultOperationsError}, fmt.Errorf("Search Error: unhandled filter type: %s [%s]", filterEntity, searchReq.Filter)
+	case "top":
+		h.searchOrganizationalUnits(entries)
+		h.searchGroups(entries)
+		h.searchUsers(entries)
+	case "organizationalunit":
+		h.searchOrganizationalUnits(entries)
 	case "posixgroup":
-		for _, g := range h.cfg.Groups {
-			attrs := []*ldap.EntryAttribute{}
-			attrs = append(attrs, &ldap.EntryAttribute{"cn", []string{g.Name}})
-			attrs = append(attrs, &ldap.EntryAttribute{"description", []string{fmt.Sprintf("%s via LDAP", g.Name)}})
-			attrs = append(attrs, &ldap.EntryAttribute{"gidNumber", []string{fmt.Sprintf("%d", g.UnixID)}})
-			attrs = append(attrs, &ldap.EntryAttribute{"objectClass", []string{"posixGroup"}})
-			attrs = append(attrs, &ldap.EntryAttribute{"uniqueMember", h.getGroupMembers(g.UnixID)})
-			attrs = append(attrs, &ldap.EntryAttribute{"memberUid", h.getGroupMemberIDs(g.UnixID)})
-			dn := fmt.Sprintf("cn=%s,ou=groups,%s", g.Name, h.cfg.Backend.BaseDN)
-			entries = append(entries, &ldap.Entry{dn, attrs})
-		}
+		h.searchGroups(entries)
 	case "posixaccount", "":
-		for _, u := range h.cfg.Users {
-			attrs := []*ldap.EntryAttribute{}
-			attrs = append(attrs, &ldap.EntryAttribute{"cn", []string{u.Name}})
-			attrs = append(attrs, &ldap.EntryAttribute{"uid", []string{u.Name}})
-			attrs = append(attrs, &ldap.EntryAttribute{"ou", []string{h.getGroupName(u.PrimaryGroup)}})
-			attrs = append(attrs, &ldap.EntryAttribute{"uidNumber", []string{fmt.Sprintf("%d", u.UnixID)}})
-			attrs = append(attrs, &ldap.EntryAttribute{"accountStatus", []string{"active"}})
-			attrs = append(attrs, &ldap.EntryAttribute{"objectClass", []string{"posixAccount"}})
-			if u.HomeDirectory != "" {
-				attrs = append(attrs, &ldap.EntryAttribute{"homeDirectory", []string{u.HomeDirectory}})
-			} else {
-				attrs = append(attrs, &ldap.EntryAttribute{"homeDirectory", []string{"/home/" + u.Name}})
-			}
-			if u.LoginShell != "" {
-				attrs = append(attrs, &ldap.EntryAttribute{"loginShell", []string{u.LoginShell}})
-			} else {
-				attrs = append(attrs, &ldap.EntryAttribute{"loginShell", []string{"/bin/bash"}})
-			}
-			attrs = append(attrs, &ldap.EntryAttribute{"description", []string{fmt.Sprintf("%s via LDAP", u.Name)}})
-			attrs = append(attrs, &ldap.EntryAttribute{"gecos", []string{fmt.Sprintf("%s via LDAP", u.Name)}})
-			attrs = append(attrs, &ldap.EntryAttribute{"gidNumber", []string{fmt.Sprintf("%d", u.PrimaryGroup)}})
-			attrs = append(attrs, &ldap.EntryAttribute{"memberOf", h.getGroupDNs(u.OtherGroups)})
-			if len(u.SSHKeys) > 0 {
-				attrs = append(attrs, &ldap.EntryAttribute{"sshPublicKey", u.SSHKeys})
-			}
-			dn := fmt.Sprintf("cn=%s,ou=%s,%s", u.Name, h.getGroupName(u.PrimaryGroup), h.cfg.Backend.BaseDN)
-			entries = append(entries, &ldap.Entry{dn, attrs})
-		}
+		h.searchUsers(entries)
 	}
 	stats_frontend.Add("search_successes", 1)
 	log.Debug("AP: Search OK: %s", searchReq.Filter)
 	return ldap.ServerSearchResult{entries, []string{}, []ldap.Control{}, ldap.LDAPResultSuccess}, nil
+}
+
+//
+func (h configHandler) searchOrganizationalUnits(entries []*ldap.Entry) {
+	ous := []string{"Services", "People", h.cfg.Backend.GroupOU}
+	for _, o := range ous {
+		attrs := []*ldap.EntryAttribute{}
+		attrs = append(attrs, &ldap.EntryAttribute{"ou", []string{o}})
+		attrs = append(attrs, &ldap.EntryAttribute{"objectClass", []string{"top", "organizationalUnit"}})
+		dn := fmt.Sprintf("ou=%s,%s", o, h.cfg.Backend.BaseDN)
+		entries = append(entries, &ldap.Entry{dn, attrs})
+	}
+}
+
+//
+func (h configHandler) searchGroups(entries []*ldap.Entry) {
+	for _, g := range h.cfg.Groups {
+		attrs := []*ldap.EntryAttribute{}
+		attrs = append(attrs, &ldap.EntryAttribute{h.cfg.Backend.NameAttr, []string{g.Name}})
+		attrs = append(attrs, &ldap.EntryAttribute{"description", []string{fmt.Sprintf("%s via LDAP", g.Name)}})
+		attrs = append(attrs, &ldap.EntryAttribute{"gidNumber", []string{fmt.Sprintf("%d", g.UnixID)}})
+		attrs = append(attrs, &ldap.EntryAttribute{"objectClass", []string{"posixGroup"}})
+		attrs = append(attrs, &ldap.EntryAttribute{"uniqueMember", h.getGroupMembers(g.UnixID)})
+		attrs = append(attrs, &ldap.EntryAttribute{"memberUid", h.getGroupMemberIDs(g.UnixID)})
+		dn := fmt.Sprintf("%s=%s,ou=%s,%s", h.cfg.Backend.NameAttr, g.Name, h.cfg.Backend.GroupOU, h.cfg.Backend.BaseDN)
+		entries = append(entries, &ldap.Entry{dn, attrs})
+	}
+}
+
+//
+func (h configHandler) searchUsers(entries []*ldap.Entry) {
+	for _, u := range h.cfg.Users {
+		attrs := []*ldap.EntryAttribute{}
+		attrs = append(attrs, &ldap.EntryAttribute{h.cfg.Backend.NameAttr, []string{u.Name}})
+		attrs = append(attrs, &ldap.EntryAttribute{"uid", []string{u.Name}})
+		attrs = append(attrs, &ldap.EntryAttribute{"ou", []string{h.getGroupName(u.PrimaryGroup)}})
+		attrs = append(attrs, &ldap.EntryAttribute{"uidNumber", []string{fmt.Sprintf("%d", u.UnixID)}})
+		attrs = append(attrs, &ldap.EntryAttribute{"accountStatus", []string{"active"}})
+		attrs = append(attrs, &ldap.EntryAttribute{"objectClass", []string{"account", "posixAccount", "top", "shadowAccount"}})
+		if u.HomeDirectory != "" {
+			attrs = append(attrs, &ldap.EntryAttribute{"homeDirectory", []string{u.HomeDirectory}})
+		} else {
+			attrs = append(attrs, &ldap.EntryAttribute{"homeDirectory", []string{"/home/" + u.Name}})
+		}
+		if u.LoginShell != "" {
+			attrs = append(attrs, &ldap.EntryAttribute{"loginShell", []string{u.LoginShell}})
+		} else {
+			attrs = append(attrs, &ldap.EntryAttribute{"loginShell", []string{"/bin/bash"}})
+		}
+		attrs = append(attrs, &ldap.EntryAttribute{"description", []string{fmt.Sprintf("%s via LDAP", u.Name)}})
+		attrs = append(attrs, &ldap.EntryAttribute{"gecos", []string{fmt.Sprintf("%s via LDAP", u.Name)}})
+		attrs = append(attrs, &ldap.EntryAttribute{"gidNumber", []string{fmt.Sprintf("%d", u.PrimaryGroup)}})
+		attrs = append(attrs, &ldap.EntryAttribute{"memberOf", h.getGroupDNs(u.OtherGroups)})
+		if len(u.SSHKeys) > 0 {
+			attrs = append(attrs, &ldap.EntryAttribute{"sshPublicKey", u.SSHKeys})
+		}
+		dn := fmt.Sprintf("%s=%s,ou=%s,%s", h.cfg.Backend.NameAttr, u.Name, h.getGroupName(u.PrimaryGroup), h.cfg.Backend.BaseDN)
+		entries = append(entries, &ldap.Entry{dn, attrs})
+	}
 }
 
 //
@@ -173,12 +201,12 @@ func (h configHandler) getGroupMembers(gid int) []string {
 	members := make(map[string]bool)
 	for _, u := range h.cfg.Users {
 		if u.PrimaryGroup == gid {
-			dn := fmt.Sprintf("cn=%s,ou=%s,%s", u.Name, h.getGroupName(u.PrimaryGroup), h.cfg.Backend.BaseDN)
+			dn := fmt.Sprintf("%s=%s,ou=%s,%s", h.cfg.Backend.NameAttr, u.Name, h.getGroupName(u.PrimaryGroup), h.cfg.Backend.BaseDN)
 			members[dn] = true
 		} else {
 			for _, othergid := range u.OtherGroups {
 				if othergid == gid {
-					dn := fmt.Sprintf("cn=%s,ou=%s,%s", u.Name, h.getGroupName(u.PrimaryGroup), h.cfg.Backend.BaseDN)
+					dn := fmt.Sprintf("%s=%s,ou=%s,%s", h.cfg.Backend.NameAttr, u.Name, h.getGroupName(u.PrimaryGroup), h.cfg.Backend.BaseDN)
 					members[dn] = true
 				}
 			}
@@ -218,7 +246,7 @@ func (h configHandler) getGroupDNs(gids []int) []string {
 	for _, gid := range gids {
 		for _, g := range h.cfg.Groups {
 			if g.UnixID == gid {
-				dn := fmt.Sprintf("cn=%s,ou=groups,%s", g.Name, h.cfg.Backend.BaseDN)
+				dn := fmt.Sprintf("%s=%s,ou=%s,%s", h.cfg.Backend.NameAttr, g.Name, h.cfg.Backend.GroupOU, h.cfg.Backend.BaseDN)
 				groups[dn] = true
 			}
 		}

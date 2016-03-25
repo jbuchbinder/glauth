@@ -49,6 +49,8 @@ type Backend interface {
 type configBackend struct {
 	BaseDN    string
 	Datastore string
+	GroupOU   string   // For config backend only
+	NameAttr  string   // For config backend only
 	Insecure  bool     // For LDAP backend only
 	Servers   []string // For LDAP backend only
 }
