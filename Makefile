@@ -4,7 +4,10 @@ VERSION=$(shell bin/glauth64 --version)
 run:
 	go run glauth.go bindata.go ldapbackend.go webapi.go configbackend.go -c glauth.cfg
 
-all: bindata binaries 
+all: prep binaries 
+
+prep:
+	mkdir -p bin
 
 binaries: bindata linux32 linux64 darwin64
 
