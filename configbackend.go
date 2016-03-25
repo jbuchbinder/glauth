@@ -54,7 +54,7 @@ func (h configHandler) Bind(bindDN, bindSimplePw string, conn net.Conn) (resultC
 		}
 	}
 	if !found {
-		log.Warning(fmt.Sprintf("Bind Error: User %s not found.", user))
+		log.Warning(fmt.Sprintf("Bind Error: User %s not found.", userName))
 		return ldap.LDAPResultInvalidCredentials, nil
 	}
 	// find the group
@@ -67,7 +67,7 @@ func (h configHandler) Bind(bindDN, bindSimplePw string, conn net.Conn) (resultC
 		}
 	}
 	if !found {
-		log.Warning(fmt.Sprintf("Bind Error: Group %s not found.", group))
+		log.Warning(fmt.Sprintf("Bind Error: Group %s not found.", groupName))
 		return ldap.LDAPResultInvalidCredentials, nil
 	}
 	// validate group membership

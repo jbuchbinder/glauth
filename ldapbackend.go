@@ -18,7 +18,7 @@ import (
 type ldapHandler struct {
 	sessions map[string]ldapSession
 	servers  []ldapBackend
-	lock     sync.Mutex // for sessions and servers
+	lock     *sync.Mutex // for sessions and servers
 	doPing   chan bool
 	cfg      *config
 }
