@@ -68,12 +68,14 @@ type configAPI struct {
 	TLS         bool
 }
 type configUser struct {
-	Name         string
-	OtherGroups  []int
-	PassSHA256   string
-	PrimaryGroup int
-	SSHKeys      []string
-	UnixID       int
+	Name          string
+	OtherGroups   []int
+	PassSHA256    string
+	PrimaryGroup  int
+	SSHKeys       []string
+	UnixID        int
+	HomeDirectory string
+	LoginShell    string
 }
 type configGroup struct {
 	Name   string

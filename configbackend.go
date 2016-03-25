@@ -136,8 +136,16 @@ func (h configHandler) Search(bindDN string, searchReq ldap.SearchRequest, conn 
 			attrs = append(attrs, &ldap.EntryAttribute{"uidNumber", []string{fmt.Sprintf("%d", u.UnixID)}})
 			attrs = append(attrs, &ldap.EntryAttribute{"accountStatus", []string{"active"}})
 			attrs = append(attrs, &ldap.EntryAttribute{"objectClass", []string{"posixAccount"}})
-			attrs = append(attrs, &ldap.EntryAttribute{"homeDirectory", []string{"/home/" + u.Name}})
-			attrs = append(attrs, &ldap.EntryAttribute{"loginShell", []string{"/bin/bash"}})
+			if u.HomeDirectory != "" {
+				attrs = append(attrs, &ldap.EntryAttribute{"homeDirectory", []string{u.HomeDirectory}})
+			} else {
+				attrs = append(attrs, &ldap.EntryAttribute{"homeDirectory", []string{"/home/" + u.Name}})
+			}
+			if u.LoginShell != "" {
+				attrs = append(attrs, &ldap.EntryAttribute{"loginShell", []string{u.LoginShell}})
+			} else {
+				attrs = append(attrs, &ldap.EntryAttribute{"loginShell", []string{"/bin/bash"}})
+			}
 			attrs = append(attrs, &ldap.EntryAttribute{"description", []string{fmt.Sprintf("%s via LDAP", u.Name)}})
 			attrs = append(attrs, &ldap.EntryAttribute{"gecos", []string{fmt.Sprintf("%s via LDAP", u.Name)}})
 			attrs = append(attrs, &ldap.EntryAttribute{"gidNumber", []string{fmt.Sprintf("%d", u.PrimaryGroup)}})
