@@ -3,5 +3,5 @@ go:
   - 1.5
   - 1.6
   - tip
-before_script:
-  - go get -d -v
+script:
+  - go get -d -v && go build -v
