@@ -215,6 +215,12 @@ func (h configHandler) searchUsers(entries []*ldap.Entry) {
 		attrs := []*ldap.EntryAttribute{}
 		attrs = append(attrs, &ldap.EntryAttribute{h.cfg.Backend.NameAttr, []string{u.Name}})
 		attrs = append(attrs, &ldap.EntryAttribute{"uid", []string{u.Name}})
+		if u.Mail != "" {
+			attrs = append(attrs, &ldap.EntryAttribute{"mail", []string{u.Mail}})
+		}
+		if u.DisplayName != "" {
+			attrs = append(attrs, &ldap.EntryAttribute{"displayName", []string{u.DisplayName}})
+		}
 		attrs = append(attrs, &ldap.EntryAttribute{"ou", []string{h.getGroupName(u.PrimaryGroup)}})
 		attrs = append(attrs, &ldap.EntryAttribute{"uidNumber", []string{fmt.Sprintf("%d", u.UnixID)}})
 		attrs = append(attrs, &ldap.EntryAttribute{"accountStatus", []string{"active"}})
