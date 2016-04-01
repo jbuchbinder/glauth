@@ -53,6 +53,8 @@ type configBackend struct {
 	NameAttr  string   // For config backend only
 	Insecure  bool     // For LDAP backend only
 	Servers   []string // For LDAP backend only
+	Home      string
+	AuthURL   string
 }
 type configFrontend struct {
 	AllowedBaseDNs []string // For LDAP backend only
@@ -78,6 +80,8 @@ type configUser struct {
 	UnixID        int
 	HomeDirectory string
 	LoginShell    string
+	Mail          string
+	DisplayName   string
 }
 type configGroup struct {
 	Name   string
@@ -203,6 +207,9 @@ func doConfig() (*config, error) {
 	if cfg.Debug {
 		logging.SetLevel(logging.DEBUG, programName)
 		log.Debug("Debugging enabled")
+	}
+	if cfg.Backend.Home == "" {
+		cfg.Backend.Home = "/home/"
 	}
 	switch cfg.Backend.Datastore {
 	case "":
