@@ -1,6 +1,6 @@
 # GLAuth: LDAP authentication server for developers
 
-[![Build Status](https://secure.travis-ci.org/jbuchbinder/gldap.png)](http://travis-ci.org/jbuchbinder/gldap) [![GoDoc](https://godoc.org/github.com/jbuchbinder/glauth?status.svg)](https://godoc.org/github.com/jbuchbinder/glauth)
+[![Build Status](https://secure.travis-ci.org/pasientskyhosting/glauth.png)](http://travis-ci.org/pasientskyhosting/glauth) [![GoDoc](https://godoc.org/github.com/pasientskyhosting/glauth?status.svg)](https://godoc.org/github.com/pasientskyhosting/glauth)
 
 Go-lang LDAP Authentication (GLAuth) is a secure, easy-to-use, LDAP server w/ configurable backends.
 
@@ -85,9 +85,9 @@ For advanced users, GLAuth supports pluggable backends.  Currently, it can use a
 Any of the architectures above will work for production.  Just remember:
 
  * Always use legit SSL certs for production!
- 
+
 ### Building:
-You'll need go-bindata to build GLAuth: 
+You'll need go-bindata to build GLAuth:
 ```unix
 go get github.com/jteeuwen/go-bindata/...
 ```
